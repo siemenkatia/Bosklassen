@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Thuisfront</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+:root{--dark:#1f3a2b;--mid:#3f7a4a;--card:#f7f4ea;--ink:#23301f;--me:#d4e6bd;--line:#b9c4a8}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:system-ui,-apple-system,sans-serif;color:var(--ink);display:flex;flex-direction:column;
+background:#dfe9d3 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cpath d='M20 70c0-28 22-44 44-44 0 28-16 50-44 44z' fill='%233f7a4a' fill-opacity='.13'/%3E%3Cpath d='M95 130c0-20 15-31 31-31 0 20-11 35-31 31z' fill='%232d5a3a' fill-opacity='.13'/%3E%3Cpath d='M100 20l8 22h-16z M100 36l10 22H90z' fill='%232d5a3a' fill-opacity='.10'/%3E%3C/svg%3E")}
+.center{margin:auto;text-align:center;padding:24px;max-width:420px}
+h1{margin:0 0 16px;color:var(--dark)}
+.btn{font:inherit;border:0;border-radius:12px;padding:14px 18px;background:var(--mid);color:#fff;cursor:pointer}
+.names{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+input[type=password]{font:inherit;font-size:24px;text-align:center;padding:12px;border-radius:12px;border:2px solid var(--line);width:180px;letter-spacing:6px}
+header{display:flex;align-items:center;justify-content:space-between;padding:calc(env(safe-area-inset-top,0px) + 8px) 14px 8px;background:var(--dark);color:#fff}
+header button{background:none;border:1px solid #9bb59f;color:#fff;border-radius:10px;padding:6px 10px;font:inherit}
+.tabs{display:none;background:var(--dark)}
+.tabs button{flex:1;padding:10px;border:0;background:none;color:#cfe0d2;font:inherit;font-weight:600;border-bottom:3px solid transparent}
+.tabs button.on{color:#fff;border-color:#9fd18b}
+main{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px}
+.col{display:flex;flex-direction:column;min-height:0;gap:10px}
+.col h2{margin:0;color:var(--dark);font-size:20px}
+.weather{background:var(--card);border-radius:14px;padding:10px 12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.weather .now{font-size:26px;font-weight:700}
+.weather .days{display:flex;gap:10px;font-size:13px;margin-left:auto}
+.feed{flex:1;min-height:0;overflow-y:auto;background:rgba(247,244,234,.92);border-radius:14px;padding:10px}
+.day{text-align:center;color:#6b7a62;font-size:12px;margin:12px 0 8px;display:flex;align-items:center;gap:8px}
+.day:before,.day:after{content:"";flex:1;height:1px;background:var(--line)}
+.msg{background:#fff;border-radius:12px;padding:8px 10px;margin:6px 0;max-width:92%;border:1px solid #e3e8d8}
+.msg.me{background:var(--me);margin-left:auto}
+.who{font-weight:700;font-size:13px;color:var(--dark)}
+.t{font-size:11px;color:#7b8872;margin-left:6px;font-weight:400}
+.t button{border:0;background:none;color:#a33;cursor:pointer;font-size:11px}
+.txt{white-space:pre-wrap;word-break:break-word;margin-top:2px}
+.pics{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.pics img{max-width:100%;max-height:260px;border-radius:8px;object-fit:cover}
+.composer{background:var(--card);border-radius:14px;padding:8px;display:flex;flex-direction:column;gap:6px;padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+.composer .row{display:flex;gap:6px;align-items:flex-end}
+.composer textarea{flex:1;font:inherit;border:1px solid var(--line);border-radius:10px;padding:8px;resize:none;height:44px}
+.composer label{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;cursor:pointer}
+.prev{display:flex;gap:4px;flex-wrap:wrap}
+.prev img{height:48px;border-radius:6px}
+.hide{display:none!important}
+@media(max-width:800px){
+ .tabs{display:flex}
+ main{grid-template-columns:1fr;padding:8px}
+ .col{display:none}.col.on{display:flex}
+ .col h2{display:none}
+}
+</style>
+</head>
+<body>
+
+<div id="pin" class="center hide">
+  <h1>🌲 Thuisfront</h1>
+  <p>Toegangscode</p>
+  <input id="pinin" type="password" inputmode="numeric" maxlength="4" autocomplete="off"><br><br>
+  <button class="btn" onclick="checkPin()">Open</button>
+</div>
+
+<div id="who" class="center hide">
+  <h1>Wie ben jij?</h1>
+  <div class="names" id="names"></div>
+</div>
+
+<div id="app" class="hide" style="display:none;flex-direction:column;height:100%">
+  <header><strong id="hello"></strong><button onclick="switchName()">Wissel naam</button></header>
+  <div class="tabs">
+    <button data-c="bosklassen" onclick="tab('bosklassen')">🌲 Bosklassen</button>
+    <button data-c="thuisfront" onclick="tab('thuisfront')">🏠 Thuisfront</button>
+  </div>
+  <main id="main"></main>
+</div>
+
+<script>
+// ====== VUL DIT IN (Supabase > Project Settings > API) ======
+const SUPABASE_URL = "https://fuxquycqauopscoaigvi.supabase.co";
+const SUPABASE_KEY = "sb_publishable_PQuWdOyE1nxJqz8razoXHQ_xjJzdTOt";
+// ============================================================
+const PIN = "2602";
+const NAMES = ["Pappie","Mammie","Lina","Loïs","Lenn"];
+const COLS = {
+  bosklassen:{title:"Bosklassen",place:"Durbuy",lat:50.352,lon:5.457},
+  thuisfront:{title:"Thuisfront",place:"Ruisbroek",lat:51.08,lon:4.28}
+};
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const $ = id => document.getElementById(id);
+const esc = s => (s||"").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const myCol = () => me === "Mammie" ? "bosklassen" : "thuisfront";
+let me = null, msgs = [], files = {bosklassen:[], thuisfront:[]}, curTab = null;
+
+function show(id){ for (const x of ["pin","who","app"]) { const e=$(x); e.classList.add("hide"); e.style.display="none"; }
+  const e=$(id); e.classList.remove("hide"); e.style.display = id==="app" ? "flex" : "block"; }
+
+function start(){
+  let ok=false; try{ ok = localStorage.getItem("tf_pin")===PIN }catch(e){}
+  if(!ok) return show("pin");
+  showNames();
+}
+function checkPin(){
+  if($("pinin").value===PIN){ try{localStorage.setItem("tf_pin",PIN)}catch(e){} showNames(); }
+  else { $("pinin").value=""; $("pinin").style.borderColor="#c33"; }
+}
+function showNames(){
+  $("names").innerHTML = NAMES.map(n=>`<button class="btn" onclick="pick('${n}')">${n}</button>`).join("");
+  show("who");
+}
+function pick(n){ me=n; $("hello").textContent="Hallo "+n; buildApp(); show("app"); tab(myCol()); load(); }
+function switchName(){ me=null; showNames(); }
+function tab(c){ curTab=c;
+  document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.c===c));
+  document.querySelectorAll(".col").forEach(d=>d.classList.toggle("on",d.dataset.c===c));
+  setTimeout(()=>scrollDown(c),30); }
+
+function buildApp(){
+  $("main").innerHTML = Object.entries(COLS).map(([k,c])=>`
+  <section class="col" data-c="${k}">
+    <h2>${k==="bosklassen"?"🌲":"🏠"} ${c.title}</h2>
+    <div class="weather" id="w-${k}">Weer laden…</div>
+    <div class="feed" id="f-${k}"></div>
+    ${k===myCol()?`<div class="composer">
+      <div class="prev" id="p-${k}"></div>
+      <div class="row">
+        <textarea id="t-${k}" placeholder="Schrijf iets…"></textarea>
+        <label>📷<input type="file" accept="image/*" multiple hidden onchange="addFiles('${k}',this)"></label>
+        <button class="btn" id="s-${k}" onclick="send('${k}')">Stuur</button>
+      </div></div>`:""}
+  </section>`).join("");
+  Object.keys(COLS).forEach(weather);
+}
+
+function addFiles(k,inp){
+  files[k].push(...inp.files); inp.value="";
+  $("p-"+k).innerHTML = files[k].map(f=>`<img src="${URL.createObjectURL(f)}">`).join("");
+}
+function shrink(file,max=1280){
+  return new Promise((res,rej)=>{
+    const img=new Image(); img.onload=()=>{
+      const r=Math.min(1,max/Math.max(img.width,img.height));
+      const c=document.createElement("canvas"); c.width=img.width*r; c.height=img.height*r;
+      c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+      c.toBlob(b=>b?res(b):rej(new Error("resize")),"image/jpeg",.8);
+    }; img.onerror=rej; img.src=URL.createObjectURL(file);
+  });
+}
+async function send(k){
+  const t=$("t-"+k), btn=$("s-"+k), text=t.value.trim();
+  if(!text && !files[k].length) return;
+  btn.disabled=true; btn.textContent="…";
+  try{
+    const urls=[];
+    for(const f of files[k]){
+      const blob=await shrink(f);
+      const path=`${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
+      const {error}=await db.storage.from("fotos").upload(path,blob,{contentType:"image/jpeg"});
+      if(error) throw error;
+      urls.push(db.storage.from("fotos").getPublicUrl(path).data.publicUrl);
+    }
+    const {error}=await db.from("messages").insert({author:me,col:k,body:text||null,photos:urls});
+    if(error) throw error;
+    t.value=""; files[k]=[]; $("p-"+k).innerHTML="";
+  }catch(e){ alert("Versturen mislukt: "+(e.message||e)); }
+  btn.disabled=false; btn.textContent="Stuur";
+}
+
+async function load(){
+  const {data,error}=await db.from("messages").select("*").order("created_at",{ascending:true}).limit(500);
+  if(error){ alert("Laden mislukt: "+error.message); return; }
+  msgs=data; render(true);
+}
+db.channel("msgs").on("postgres_changes",{event:"*",schema:"public",table:"messages"},p=>{
+  if(p.eventType==="INSERT") msgs.push(p.new);
+  if(p.eventType==="DELETE") msgs=msgs.filter(m=>m.id!==p.old.id);
+  if(me) render(false);
+}).subscribe();
+
+async function del(id){ if(confirm("Bericht verwijderen?")) await db.from("messages").delete().eq("id",id); }
+
+function render(first){
+  for(const k of Object.keys(COLS)){
+    const f=$("f-"+k); if(!f) continue;
+    const atBottom = first || f.scrollHeight-f.scrollTop-f.clientHeight<80;
+    let last="", html="";
+    for(const m of msgs.filter(m=>m.col===k)){
+      const d=new Date(m.created_at);
+      const day=d.toLocaleDateString("nl-BE",{weekday:"long",day:"numeric",month:"long"});
+      if(day!==last){ html+=`<div class="day">${day}</div>`; last=day; }
+      const time=d.toLocaleTimeString("nl-BE",{hour:"2-digit",minute:"2-digit"});
+      html+=`<div class="msg ${m.author===me?"me":""}">
+        <div class="who">${esc(m.author)} zegt<span class="t">${time}${m.author===me?` · <button onclick="del('${m.id}')">verwijder</button>`:""}</span></div>
+        ${m.body?`<div class="txt">${esc(m.body)}</div>`:""}
+        ${m.photos?.length?`<div class="pics">${m.photos.map(u=>`<a href="${u}" target="_blank"><img src="${u}" loading="lazy"></a>`).join("")}</div>`:""}
+      </div>`;
+    }
+    f.innerHTML=html||`<div class="day">Nog geen berichten</div>`;
+    if(atBottom) f.scrollTop=f.scrollHeight;
+  }
+}
+function scrollDown(k){ const f=$("f-"+k); if(f) f.scrollTop=f.scrollHeight; }
+
+const WMO=c=>c===0?"☀️":c<3?"⛅":c<49?"🌫️":c<68?"🌧️":c<78?"❄️":c<83?"🌦️":c<87?"🌨️":"⛈️";
+async function weather(k){
+  const c=COLS[k], el=$("w-"+k);
+  try{
+    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lon}&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=Europe%2FBrussels&forecast_days=4`);
+    const j=await r.json();
+    const days=j.daily.time.slice(1).map((t,i)=>`<div style="text-align:center">${new Date(t).toLocaleDateString("nl-BE",{weekday:"short"})}<br>${WMO(j.daily.weather_code[i+1])}<br>${Math.round(j.daily.temperature_2m_min[i+1])}°/${Math.round(j.daily.temperature_2m_max[i+1])}°</div>`).join("");
+    el.innerHTML=`<div><div class="now">${WMO(j.current.weather_code)} ${Math.round(j.current.temperature_2m)}°</div><small>${c.place}</small></div><div class="days">${days}</div>`;
+  }catch(e){ el.textContent="Weer niet beschikbaar"; }
+}
+setInterval(()=>Object.keys(COLS).forEach(weather),30*60*1000);
+start();
+</script>
+</body>
+</html>
