@@ -51,6 +51,15 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:12px;pad
  .col{display:none}.col.on{display:flex}
  .col h2{display:none}
 }
+.gifbtn{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;font-weight:700;cursor:pointer}
+#gifm{position:fixed;inset:0;background:rgba(20,40,28,.7);z-index:50;display:flex;align-items:flex-end;justify-content:center}
+#gifm .sheet{background:var(--card);width:100%;max-width:640px;height:85%;border-radius:18px 18px 0 0;display:flex;flex-direction:column;padding:10px;gap:8px}
+#gifm .top{display:flex;gap:6px}
+#gifm input{flex:1;font:inherit;padding:10px;border:1px solid var(--line);border-radius:10px}
+#gifchips{display:flex;gap:6px;overflow-x:auto;flex-shrink:0}
+#gifchips button{white-space:nowrap;border:0;background:var(--me);border-radius:16px;padding:6px 12px;font:inherit}
+#gifres{flex:1;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:4px;align-content:start}
+#gifres img{width:100%;height:110px;object-fit:cover;border-radius:8px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -76,11 +85,22 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:12px;pad
   <main id="main"></main>
 </div>
 
+<div id="gifm" class="hide">
+  <div class="sheet">
+    <div class="top"><input id="gifq" placeholder="Zoek een gif (bv. kat, hoera)…" onkeydown="if(event.key==='Enter')gifSearch(this.value.trim())"><button class="btn" onclick="gifSearch($('gifq').value.trim())">Zoek</button><button class="btn" style="background:#888" onclick="closeGif()">✕</button></div>
+    <div id="gifchips"></div>
+    <div id="gifres"></div>
+    <button id="gifmore" class="btn" style="display:none" onclick="gifSearch(gifQ,true)">Meer laden</button>
+    <small style="text-align:center;color:#6b7a62">via GIPHY</small>
+  </div>
+</div>
+
 <script>
 // ====== VUL DIT IN (Supabase > Project Settings > API) ======
 const SUPABASE_URL = "https://fuxquycqauopscoaigvi.supabase.co";
 const SUPABASE_KEY = "sb_publishable_PQuWdOyE1nxJqz8razoXHQ_xjJzdTOt";
 // ============================================================
+const GIPHY_KEY = "Fs5sEHi1hNpVqFJTABmlK7rNvnsd3Aca";
 const PIN = "2602";
 const NAMES = ["Pappie","Mammie","Lina","Loïs","Lenn"];
 const COLS = {
@@ -91,7 +111,7 @@ const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $ = id => document.getElementById(id);
 const esc = s => (s||"").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const myCol = () => me === "Mammie" ? "bosklassen" : "thuisfront";
-let me = null, msgs = [], files = {bosklassen:[], thuisfront:[]}, curTab = null;
+let me = null, msgs = [], files = {bosklassen:[], thuisfront:[]}, gifs = {bosklassen:[], thuisfront:[]}, curTab = null;
 
 function show(id){ for (const x of ["pin","who","app"]) { const e=$(x); e.classList.add("hide"); e.style.display="none"; }
   const e=$(id); e.classList.remove("hide"); e.style.display = id==="app" ? "flex" : "block"; }
@@ -122,11 +142,12 @@ function buildApp(){
     <h2>${k==="bosklassen"?"🌲":"🏠"} ${c.title}</h2>
     <div class="weather" id="w-${k}">Weer laden…</div>
     <div class="feed" id="f-${k}"></div>
-    ${k===myCol()?`<div class="composer">
+    ${(k===myCol()||me==="Mammie")?`<div class="composer">
       <div class="prev" id="p-${k}"></div>
       <div class="row">
-        <textarea id="t-${k}" placeholder="Schrijf iets…"></textarea>
+        <textarea id="t-${k}" placeholder="Schrijf iets…" onpaste="pasteFiles('${k}',event)"></textarea>
         <label>📷<input type="file" accept="image/*" multiple hidden onchange="addFiles('${k}',this)"></label>
+        ${GIPHY_KEY&&!GIPHY_KEY.startsWith("JOUW")?`<button class="gifbtn" onclick="openGif('${k}')">GIF</button>`:""}
         <button class="btn" id="s-${k}" onclick="send('${k}')">Stuur</button>
       </div></div>`:""}
   </section>`).join("");
@@ -135,7 +156,36 @@ function buildApp(){
 
 function addFiles(k,inp){
   files[k].push(...inp.files); inp.value="";
-  $("p-"+k).innerHTML = files[k].map(f=>`<img src="${URL.createObjectURL(f)}">`).join("");
+  renderPrev(k);
+}
+function renderPrev(k){
+  $("p-"+k).innerHTML = files[k].map(f=>`<img src="${URL.createObjectURL(f)}">`).join("")+gifs[k].map(u=>`<img src="${u}">`).join("");
+}
+let gifK=null,gifQ="",gifOff=0;
+const CHIPS=["populair","grappig","hoera","dansen","katten","honden","lachen","knuffel","verjaardag","slapen","boos","pizza","voetbal","wow","bedankt","goed gedaan","bos","regen"];
+function openGif(k){
+  gifK=k; $("gifm").classList.remove("hide");
+  $("gifchips").innerHTML=CHIPS.map(c=>`<button onclick="gifSearch('${c==="populair"?"":c}')">${c==="populair"?"🔥 populair":c}</button>`).join("");
+  gifSearch($("gifq").value.trim());
+}
+function closeGif(){ $("gifm").classList.add("hide"); }
+async function gifSearch(q,more){
+  if(!more){ gifOff=0; gifQ=q; $("gifq").value=q; $("gifres").innerHTML=""; }
+  const u=`https://api.giphy.com/v1/gifs/${gifQ?"search":"trending"}?api_key=${GIPHY_KEY}&limit=24&offset=${gifOff}&rating=g&lang=nl${gifQ?"&q="+encodeURIComponent(gifQ):""}`;
+  try{
+    const j=await (await fetch(u)).json();
+    const d=j.data||[];
+    $("gifres").insertAdjacentHTML("beforeend",d.map(g=>`<img src="${g.images.fixed_height_small.url}" data-u="${g.images.downsized_medium.url}" onclick="pickGif(this.dataset.u)" loading="lazy">`).join(""));
+    if(!d.length && !gifOff) $("gifres").innerHTML="<p>Niets gevonden, probeer iets anders.</p>";
+    gifOff+=24; $("gifmore").style.display = d.length===24 ? "block" : "none";
+  }catch(e){ $("gifres").innerHTML="<p>Gifs laden mislukt.</p>"; }
+}
+function pickGif(u){ gifs[gifK].push(u); renderPrev(gifK); closeGif(); }
+function pasteFiles(k,e){
+  const imgs=[...(e.clipboardData?.files||[])].filter(f=>f.type.startsWith("image/"));
+  if(!imgs.length) return;
+  e.preventDefault(); files[k].push(...imgs);
+  renderPrev(k);
 }
 function shrink(file,max=1280){
   return new Promise((res,rej)=>{
@@ -149,20 +199,22 @@ function shrink(file,max=1280){
 }
 async function send(k){
   const t=$("t-"+k), btn=$("s-"+k), text=t.value.trim();
-  if(!text && !files[k].length) return;
+  if(!text && !files[k].length && !gifs[k].length) return;
   btn.disabled=true; btn.textContent="…";
   try{
     const urls=[];
     for(const f of files[k]){
-      const blob=await shrink(f);
-      const path=`${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
-      const {error}=await db.storage.from("fotos").upload(path,blob,{contentType:"image/jpeg"});
+      const gif=f.type==="image/gif";
+      if(gif && f.size>10*1024*1024) throw new Error("Gif is te groot (max 10 MB)");
+      const blob=gif?f:await shrink(f);
+      const path=`${Date.now()}-${Math.random().toString(36).slice(2,8)}.${gif?"gif":"jpg"}`;
+      const {error}=await db.storage.from("fotos").upload(path,blob,{contentType:gif?"image/gif":"image/jpeg"});
       if(error) throw error;
       urls.push(db.storage.from("fotos").getPublicUrl(path).data.publicUrl);
     }
-    const {error}=await db.from("messages").insert({author:me,col:k,body:text||null,photos:urls});
+    const {error}=await db.from("messages").insert({author:me,col:k,body:text||null,photos:[...urls,...gifs[k]]});
     if(error) throw error;
-    t.value=""; files[k]=[]; $("p-"+k).innerHTML="";
+    t.value=""; files[k]=[]; gifs[k]=[]; renderPrev(k);
   }catch(e){ alert("Versturen mislukt: "+(e.message||e)); }
   btn.disabled=false; btn.textContent="Stuur";
 }
