@@ -120,6 +120,8 @@ function show(id){ for (const x of ["pin","who","app"]) { const e=$(x); e.classL
 function start(){
   let ok=false; try{ ok = localStorage.getItem("tf_pin")===PIN }catch(e){}
   if(!ok) return show("pin");
+  let n=null; try{ n=localStorage.getItem("tf_name") }catch(e){}
+  if(NAMES.includes(n)) return pick(n);
   showNames();
 }
 function checkPin(){
@@ -130,8 +132,8 @@ function showNames(){
   $("names").innerHTML = NAMES.map(n=>`<button class="btn" onclick="pick('${n}')">${n}</button>`).join("");
   show("who");
 }
-function pick(n){ me=n; $("hello").textContent="Hallo "+n; buildApp(); show("app"); tab(myCol()); load(); }
-function switchName(){ me=null; showNames(); }
+function pick(n){ me=n; try{localStorage.setItem("tf_name",n)}catch(e){} $("hello").textContent="Hallo "+n; buildApp(); show("app"); tab(myCol()); load(); }
+function switchName(){ me=null; try{localStorage.removeItem("tf_name")}catch(e){} showNames(); }
 function tab(c){ curTab=c;
   document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.c===c));
   document.querySelectorAll(".col").forEach(d=>d.classList.toggle("on",d.dataset.c===c));
